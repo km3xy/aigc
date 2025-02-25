@@ -1,0 +1,108 @@
+
+
+以下是代码中CSS动画效果的实现解析（关键部分用**标注）
+
+
+
+
+ 
+.typewriter::after {
+  content: '▌';
+  color: var(--deepseek-blue);
+  /* 核心动画设置 */
+  animation: cursor 1s step-end infinite; /** 使用名为cursor的动画，时长1秒，阶跃效果，无限循环 **/
+  position: absolute;
+}
+
+/* 关键帧动画定义 */
+@keyframes cursor { 
+  0%, 50% { opacity: 1; } /** 前50%时间保持可见 **/
+  51%, 100% { opacity: 0; } /** 后50%时间保持隐藏 **/
+}
+
+
+
+实现原理分步说明：
+
+伪元素创建光标：
+
+
+ 
+::after {
+  content: '▌';  /* 使用▌符号模拟光标 */
+  position: absolute; /* 绝对定位跟随文字 */
+}
+
+
+
+动画参数设置
+
+
+
+ 
+animation: cursor 1s step-end infinite;
+/* 分解属性：
+- 动画名称：cursor
+- 持续时间：1秒
+- 时序函数：step-end（突然变化而非渐变）
+- 迭代次数：无限循环 */
+
+关键帧控制逻辑
+
+
+
+
+ 
+@keyframes cursor {
+  0%, 50% { opacity: 1; }  /* 前0.5秒显示光标 */
+  51%, 100% { opacity: 0; } /* 后0.5秒隐藏光标 */
+}
+
+
+
+特殊效果实现技巧：
+
+ step-end  时序函数：使透明度在50%和51%关键帧之间产生突变效果，而非渐变
+绝对定位：确保光标始终跟随文本末尾位置
+无限循环：通过 infinite 参数实现持
+
+
+
+调试技巧示例
+
+
+
+
+ 
+/* 修改为慢速闪烁（2秒周期） */
+animation: cursor 2s step-end infinite;
+
+/* 修改为渐变效果 */
+animation: cursor 1s linear infinite;
+
+/* 修改光标颜色 */
+color: #ff0000;
+
+
+
+这种实现方式相比常规方案的优势：
+
+性能优化：使用opacity属性实现动画，比transform更轻量
+精确控制：通过关键帧百分比精确控制闪烁节奏
+无JavaScript依赖：纯CSS实现，运行效率更高
+兼容性好：支持所有现代浏览器，包括移动端浏览器
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
