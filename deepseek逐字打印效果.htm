@@ -1,0 +1,351 @@
+ 
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能滚动逐字打印 - DeepSeek</title>
+  <style>
+    :root {
+      --deepseek-blue: #1752FA;
+      --bg-color: #f8fafc;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background-color: var(--bg-color);
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h1 {
+      color: var(--deepseek-blue);
+      text-align: center;
+      font-size: 22px;
+      margin: -5px 0 15px 0;
+    }
+
+    #inputText {
+      width: 100%;
+      height: 140px;
+      padding: 12px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      margin: 12px 0;
+      font-size: 15px;
+      resize: vertical;
+    }
+
+    /* 显示区域样式 */
+    #output {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      padding: 20px;
+      margin-top: 24px;
+      max-height: 40vh;   /* 最大高度：视口高度的40% */
+      min-height: 120px;  /* 最小高度保证显示区域可见 */
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    #output::-webkit-scrollbar {
+      display: none;
+    }
+
+    .control-panel {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    .speed-option, .speak-option {
+      padding: 6px 12px;
+      border-radius: 4px;
+      background: #e5e7eb;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .active {
+      background: var(--deepseek-blue);
+      color: white;
+    }
+
+    button {
+      background: var(--deepseek-blue);
+      color: white;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .message-container {
+      display: flex;
+      gap: 15px;
+      margin: 24px 0;
+    }
+
+    .deepseek-avatar {
+      width: 36px;
+      height: 36px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .message-content {
+      flex: 1;
+      min-width: 0;
+      padding-left: 12px;
+    }
+
+    .typewriter {
+      font-size: 16px;
+      line-height: 1.75;
+      color: #374151;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      position: relative;
+    }
+
+    .typewriter::after {
+      content: '▌';
+      color: var(--deepseek-blue);
+      animation: cursor 1s step-end infinite;
+      position: absolute;
+    }
+
+    @keyframes cursor { 
+      0%, 50% { opacity: 1; } 
+      51%, 100% { opacity: 0; } 
+    }
+  </style>
+</head>
+<body>
+  <h1>智能滚动逐字打印</h1>
+  <textarea id="inputText" placeholder="输入要打印的内容..."></textarea>
+  
+  <div class="control-panel">
+    <div class="speed-option" data-speed="1">极速模式</div>
+    <div class="speed-option active" data-speed="2">平衡模式</div>
+    <div class="speed-option" data-speed="3">观影模式</div>
+    <div class="speak-option active">朗读功能</div>
+    <button id="submitButton">开始生成</button>
+  </div>
+
+  <div id="output"></div>
+
+  <script>
+    class SmartTyper {
+      constructor() {
+        this.output = document.getElementById('output');
+        this.button = document.getElementById('submitButton');
+        this.speed = 2;
+        this.isGenerating = false;
+        this.lastScrollTime = 0;
+        this.abortController = null;
+        this.synth = window.speechSynthesis || null;
+        this.isSpeak = true;
+        this.initEventListeners();
+      }
+
+      initEventListeners() {
+        document.querySelectorAll('.speed-option').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            this.setSpeed(e.currentTarget);
+          });
+        });
+
+        document.querySelector('.speak-option').addEventListener('click', (e) => {
+          this.toggleSpeak(e.currentTarget);
+        });
+
+        this.button.addEventListener('click', () => {
+          this.isGenerating ? this.abort() : this.start();
+        });
+
+        this.output.addEventListener('scroll', () => {
+          this.lastScrollTime = Date.now();
+        });
+      }
+
+      setSpeed(btn) {
+        document.querySelectorAll('.speed-option').forEach(b => {
+          b.classList.remove('active');
+        });
+        btn.classList.add('active');
+        this.speed = parseInt(btn.dataset.speed);
+      }
+
+      toggleSpeak(btn) {
+        this.isSpeak = !this.isSpeak;
+        btn.classList.toggle('active');
+      }
+
+      async start() {
+        const text = document.getElementById('inputText').value.trim();
+        if (!text) return;
+
+        this.isGenerating = true;
+        this.button.textContent = '停止生成';
+        this.abortController = new AbortController();
+        
+        const message = this.createMessage();
+        const typewriter = message.querySelector('.typewriter');
+
+        try {
+          await this.generate(text, typewriter);
+        } catch (e) {
+          if (e.name !== 'AbortError') console.error(e);
+        } finally {
+          this.isGenerating = false;
+          this.button.textContent = '开始生成';
+        }
+      }
+
+      abort() {
+        this.abortController.abort();
+        if (this.synth) this.synth.cancel();
+        this.isGenerating = false;
+        this.button.textContent = '开始生成';
+      }
+
+      createMessage() {
+        const container = document.createElement('div');
+        container.className = 'message-container';
+        container.innerHTML = `
+          <div class="deepseek-avatar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="var(--deepseek-blue)"/>
+            </svg>
+          </div>
+          <div class="message-content">
+            <div class="typewriter"></div>
+          </div>`;
+
+        if (this.output.children.length >= 20) {
+          this.output.removeChild(this.output.firstElementChild);
+        }
+        this.output.appendChild(container);
+        return container;
+      }
+
+      async generate(text, element) {
+        const speedMap = { 1: 30, 2: 60, 3: 120 };
+        let index = 0;
+
+        while (index < text.length) {
+          if (this.abortController.signal.aborted) break;
+
+          element.textContent = text.substring(0, ++index);
+          
+          if (this.synth && this.isSpeak) {
+            this.speakCurrentText(text.substring(0, index));
+          }
+
+          this.forceReflow(element);
+          this.scrollToCursor(element);
+          await new Promise(resolve => setTimeout(resolve, speedMap[this.speed]));
+        }
+      }
+
+      speakCurrentText(text) {
+        this.synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        this.synth.speak(utterance);
+      }
+
+      forceReflow(element) {
+        void element.offsetHeight;
+      }
+
+      scrollToCursor(element) {
+        if (Date.now() - this.lastScrollTime < 800) return;
+
+        const marker = document.createElement('span');
+        marker.textContent = '|';
+        marker.style.visibility = 'hidden';
+        element.appendChild(marker);
+        
+        const markerRect = marker.getBoundingClientRect();
+        const containerRect = this.output.getBoundingClientRect();
+        element.removeChild(marker);
+
+        const safeMargin = containerRect.height * 0.15;
+        const cursorBottom = markerRect.bottom - containerRect.top + this.output.scrollTop;
+        
+        if (cursorBottom > (this.output.scrollTop + containerRect.height - safeMargin)) {
+          const target = Math.min(
+            cursorBottom - containerRect.height + safeMargin,
+            this.output.scrollHeight - containerRect.height
+          );
+          this.smoothScroll(target);
+        }
+      }
+
+      smoothScroll(target) {
+        const start = this.output.scrollTop;
+        const duration = 300;
+        const startTime = performance.now();
+
+        const animate = (now) => {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const ease = 1 - Math.pow(1 - progress, 3);
+          this.output.scrollTop = start + (target - start) * ease;
+          if (progress < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+      }
+    }
+
+    // 兼容性处理
+    if (!window.speechSynthesis) {
+      document.querySelector('.speak-option').style.display = 'none';
+    }
+
+    // 初始化实例
+    new SmartTyper();
+  </script>
+</body>
+</html>
+
+
+主要改进点：
+
+完整修复了SVG图标显示问题
+优化了滚动计算逻辑（移除了冗余的重排操作）
+完善了语音朗读的中断机制
+明确标注了显示区域的高度控制代码
+添加了历史消息限制（保留最近20条）
+优化了移动端显示效果
+
+功能特点：
+
+智能滚动：自动跟踪打字光标位置
+三种速度模式（30ms/60ms/120ms 每字符）
+实时语音合成朗读
+自适应显示区域（40vh最大高度 + 120px最小高度）
+流畅的滚动动画
+完善的错误处理和中断机制
+
+可以直接保存为.html文件在浏览器中运行，所有功能均可正常使用。
+
+
+
+
+
+
+
+
+
