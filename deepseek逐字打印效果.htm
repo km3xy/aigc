@@ -1,5 +1,4 @@
- 
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
@@ -347,6 +346,28 @@
 
 这个版本可以完整运行，显示区高度通过 max-height: 40vh 和 min-height: 200px 实现自适应
 ，既能保证移动端显示效果，又能在桌面端限制显示范围
+
+
+
+ <style>
+    /* 其他样式保持不变 */
+
+    #output {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      padding: 20px;
+      margin-top: 24px;
+      max-height: 40vh;       /* 显示区最大高度（视口高度的40%） */
+      min-height: 120px;      /* 显示区最小高度 */
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    /* 其他样式保持不变... */
+  </style>
+
+
 
 
 
